@@ -46,6 +46,10 @@ class WaypointUpdater(object):
         self.loop() # instead, to have control of the publishing frequency
         
     def loop(self):
+        """
+        Instead of rospy.spin(), this method is used as an alternative in order to set
+        a custom publishing rate
+        """
         rate = rospy.Rate(30) # 30 Hz should be the minimum
         while not rospy.is_shutdown():
             if self.pose and self.waypoint_tree:
@@ -55,6 +59,12 @@ class WaypointUpdater(object):
             rate.sleep()
                 
     def get_closest_waypoint_idx(self):
+        """
+        From the KDTree, the closest waypoint is extracted from the base waypoints given
+        a pose. Such waypoint will always be ahead from the position of the car towards the
+        highway direction
+        """
+    
         # Coordinates of our car
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
@@ -80,6 +90,10 @@ class WaypointUpdater(object):
         self.final_waypoints_pub.publish(final_lane)
         
     def generate_lane(self):
+        """
+        In addition to the closest waypoint, a set of subsequent waypoints are added to the lane
+        waypoints output. This method triggers as well the deceleration in case of given stop waypoints
+        """
         lane = Lane()
         closest_idx = self.get_closest_waypoint_idx()
         farthest_idx = closest_idx + LOOKAHEAD_WPS
@@ -93,7 +107,11 @@ class WaypointUpdater(object):
         return lane
     
     def decelerate_waypoints(self, waypoints, closest_idx):
-        temp = []
+        """
+        The velocity will be reduced in case the pose reaches a triggering waypoint prior
+        to the stop waypoint line        
+        """
+        tmp = []
         for i, wp in enumerate(waypoints):
             p = Waypoint()
             p.pose = wp.pose
@@ -105,9 +123,9 @@ class WaypointUpdater(object):
                 vel = 0.
                 
             p.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
-            temp.append(p)
+            tmp.append(p)
                     
-        return temp
+        return tmp
                 
          
     def pose_cb(self, msg):
@@ -115,6 +133,10 @@ class WaypointUpdater(object):
         self.pose = msg
 
     def waypoints_cb(self, waypoints): # Latch subscriber, it is called just once
+        """
+        The base waypoints are formated in a 2D list which is fed to the KDTree method to construct a KDTree which
+        will provide closest waypoints information in a quite optimal way
+        """
         # TODO: Implement
         self.base_lane = waypoints
         if not self.waypoints_2d: # to be sure that it is initialized before callback is performed

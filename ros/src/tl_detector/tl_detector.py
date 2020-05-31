@@ -12,20 +12,19 @@ import cv2
 import yaml
 from scipy.spatial import KDTree        # Added the KDTree
 
-
 STATE_COUNT_THRESHOLD = 3
 
 class TLDetector(object):
     def __init__(self):
-        rospy.init_node('tl_detector')
+        rospy.init_node('tl_detector')  # Initialization of the tl_detector node
 
-        self.pose = None
-        self.waypoints = None
+        self.pose = None                # pose : x, y
+        self.waypoints = None           
         self.waypoints_2d = None
         self.waypoint_tree = None
-        self.camera_image = None
+        self.camera_image = None        # image from car-mounted camera
         self.lights = []
-
+        # The tl_detector node subscribes to the topics: '/current_pose', '/base_waypoints', '/vehicle/traffic_lights', '/image_color'
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
@@ -42,10 +41,11 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
+        # Define the Publisher topic: tl_detector publishes the '/traffic_waypoint' topic which publishes the upcoming red lights at camera frequency.
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
+        self.light_classifier = TLClassifier()  # light_classifier is an object of the TLClassifier class to determine the classified image 
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
@@ -55,18 +55,22 @@ class TLDetector(object):
 
         rospy.spin()
 
+    # Call back function for the '/current_pose' topic subscription
     def pose_cb(self, msg):
         self.pose = msg
 
+    # Call back function for the '/base_waypoints' topic subscription
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
         if not self.waypoints_2d:
             self.waypoints_2d = [[w.pose.pose.position.x, w.pose.pose.position.y] for w in waypoints.waypoints]
             self.waypoint_tree = KDTree(self.waypoints_2d)
 
+    # Call back function for the '/vehicle/traffic_lights' topic subscription
     def traffic_cb(self, msg):
         self.lights = msg.lights   
 
+    # Call back function for the '/image_color' topic subscription
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light's stop line to /traffic_waypoint
@@ -75,7 +79,7 @@ class TLDetector(object):
         """
         self.has_image = True
         self.camera_image = msg
-        light_wp, state = self.process_traffic_lights()
+        light_wp, state = self.process_traffic_lights() # Get the closest traffic light index and its state
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -83,17 +87,17 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        if self.state != state:
-            self.state_count = 0
-            self.state = state
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
-            self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
-            self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
+        if self.state != state:     # if state is changed 
+            self.state_count = 0    # set count to Zero
+            self.state = state      # set the Node state to the new state & count +1 at afterwards 
+        elif self.state_count >= STATE_COUNT_THRESHOLD:                 # if the counts are greater than the Threshold    
+            self.last_state = self.state                                # Set the last state to the Node state 
+            light_wp = light_wp if state == TrafficLight.RED else -1    # set the light_wp index to the closest traffic light index ONLY if its state was Red  
+            self.last_wp = light_wp                                     # set the last_wp index to the light_wp index
+            self.upcoming_red_light_pub.publish(Int32(light_wp))        # ---> Publish the (light_wp)
         else:
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-        self.state_count += 1
+            self.upcoming_red_light_pub.publish(Int32(self.last_wp))    # if state did not change and still less than the threshold ---> Kepp Publishing the Last_wp index
+        self.state_count += 1       # Increment the state_count + 1
 
     def get_closest_waypoint(self, x, y): # Changed the Parameters from pose to x,y 
         """Identifies the closest path waypoint to the given position
@@ -114,16 +118,15 @@ class TLDetector(object):
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
-        """
+        # Commented the light.state: It was only used for testing with no Image Classification.
+        # return light.state
         if(not self.has_image):
             self.prev_light_loc = None
             return False
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-        #Get classification
+        # Return the classified Image 
         return self.light_classifier.get_classification(cv_image)
-        """
-        return light.state
-
+        
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color

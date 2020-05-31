@@ -3,6 +3,8 @@
 
 This project is the capstone project of final term of the Udacity Self-Driving Car Engineer Nanodegree. Applying ROS nodes to implement waypoint tracking, control and traffic light detection/classification, the final code will be implemented on a simulator. The car will be driven around a test track. 
 
+[![Test video](/corona%20coders%20car.gif)](/corona%20coders%20car.mp4)
+
  ### Team: The Corona Coders
 
 **Members:**
